@@ -128,17 +128,17 @@ export default function RoleplayChat() {
       <main className="container mx-auto flex flex-1 flex-col px-4 py-6">
         <div className="mx-auto w-full max-w-4xl flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
           <div className="flex h-[calc(100vh-220px)] flex-col">
-            <div className="flex-1 space-y-4 overflow-y-auto p-6">
+            <div className="flex-1 space-y-4 overflow-y-auto p-6 bg-gradient-to-b from-slate-50 to-white">
               {messages.map((msg, i) => (
                 <div key={i} className={'flex ' + (msg.role === 'user' ? 'justify-end' : 'justify-start')}>
                   <div
-                    className={'max-w-[80%] rounded-2xl px-4 py-3 ' + (
+                    className={'max-w-[80%] rounded-2xl px-4 py-3 shadow-md ' + (
                       msg.role === 'user'
-                        ? 'bg-gradient-to-r ' + selectedPersona.color + ' text-white shadow-lg'
-                        : 'border border-slate-200 bg-slate-50 text-slate-800'
+                        ? 'bg-gradient-to-r from-slate-700 to-slate-800 text-white border border-slate-900'
+                        : 'bg-white border-2 border-slate-300 text-slate-900'
                     )}
                   >
-                    <p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.content}</p>
+                    <p className="whitespace-pre-wrap text-sm leading-relaxed font-medium">{msg.content}</p>
                   </div>
                 </div>
               ))}
@@ -158,7 +158,7 @@ export default function RoleplayChat() {
               <div ref={messagesEndRef} />
             </div>
 
-            <div className="border-t border-slate-200 bg-slate-50 p-4">
+            <div className="border-t border-slate-200 bg-slate-100 p-4">
               <div className="flex gap-3">
                 <input
                   type="text"
@@ -166,13 +166,13 @@ export default function RoleplayChat() {
                   onChange={(e) => setInput(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
                   placeholder={selectedPersona.placeholderText}
-                  className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
+                  className="flex-1 rounded-xl border-2 border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none focus:border-slate-500 focus:ring-4 focus:ring-slate-200"
                   disabled={isLoading}
                 />
                 <button
                   onClick={sendMessage}
                   disabled={isLoading || !input.trim()}
-                  className={'rounded-xl bg-gradient-to-r ' + selectedPersona.color + ' px-6 py-3 font-medium text-white shadow-lg transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50'}
+                  className="rounded-xl bg-gradient-to-r from-slate-700 to-slate-900 px-6 py-3 font-bold text-white shadow-xl transition hover:from-slate-600 hover:to-slate-800 hover:shadow-2xl disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Send
                 </button>
