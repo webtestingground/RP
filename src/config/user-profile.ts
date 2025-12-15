@@ -45,8 +45,8 @@ export interface UserProfile {
  */
 export const userProfile: UserProfile = {
   // Basic Info
-  name: 'User',              // Change to your name
-  age: 25,                   // Your age
+  name: 'Mark',              // Change to your name
+  age: 35,                   // Your age
   gender: 'male',           // Your gender
 
   // Personality
