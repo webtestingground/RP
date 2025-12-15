@@ -131,45 +131,46 @@ export const userProfile: UserProfile = {
 export function getUserProfilePrompt(): string {
   const p = userProfile;
 
-  return `
-## ABOUT THE USER (IMPORTANT!)
+  const parts = [
+    `## USER PROFILE`,
+    `Name: ${p.name} (${p.age}, ${p.gender})`,
+    `Personality: ${p.personality.join(', ')}`,
+    `Interests: ${p.interests.join(', ')}`,
+    `Tone: ${p.preferredTone}${p.usesEmojis ? ', uses emojis' : ''}`,
+    ``,
+    `Loves:`,
+    ...p.lovesWhen.map(item => `- ${item}`),
+    ``,
+    `Hates:`,
+    ...p.hatesWhen.map(item => `- ${item}`),
+  ];
 
-**Name:** ${p.name}
-**Age:** ${p.age}
-**Gender:** ${p.gender}
+  if (p.romanticPreferences) {
+    parts.push(
+      ``,
+      `Romantic:`,
+      `- Pet names: ${p.romanticPreferences.petNames.join(', ')}`,
+      `- Love languages: ${p.romanticPreferences.loveLanguage.join(', ')}`,
+      `- Ideal date: ${p.romanticPreferences.idealDate}`
+    );
+  }
 
-**Personality Traits:** ${p.personality.join(', ')}
-**Interests:** ${p.interests.join(', ')}
+  if (p.background) {
+    parts.push(``, `Background: ${p.background}`);
+  }
 
-**Communication Preferences:**
-- Preferred tone: ${p.preferredTone}
-- Uses emojis: ${p.usesEmojis ? 'Yes' : 'No'}
+  if (p.currentGoals && p.currentGoals.length > 0) {
+    parts.push(``, `Goals:`, ...p.currentGoals.map(goal => `- ${goal}`));
+  }
 
-**The user LOVES when you:**
-${p.lovesWhen.map(item => `- ${item}`).join('\n')}
+  if (p.customInstructions) {
+    parts.push(``, `Instructions: ${p.customInstructions.trim()}`);
+  }
 
-**The user HATES when you:**
-${p.hatesWhen.map(item => `- ${item}`).join('\n')}
+  parts.push(
+    ``,
+    `IMPORTANT: Reference these details naturally. Make ${p.name} feel understood.`
+  );
 
-${p.romanticPreferences ? `
-**Romantic Preferences:**
-- Likes to be called: ${p.romanticPreferences.petNames.join(', ')}
-- Love languages: ${p.romanticPreferences.loveLanguage.join(', ')}
-- Ideal date: ${p.romanticPreferences.idealDate}
-` : ''}
-
-${p.background ? `**Background:** ${p.background}` : ''}
-
-${p.currentGoals && p.currentGoals.length > 0 ? `
-**Current Goals:**
-${p.currentGoals.map(goal => `- ${goal}`).join('\n')}
-` : ''}
-
-${p.customInstructions ? `
-**Special Instructions:**
-${p.customInstructions}
-` : ''}
-
-**IMPORTANT:** Use this information to personalize your responses. Remember these details and reference them naturally in conversation. Make ${p.name} feel understood and valued.
-`;
+  return parts.join('\n');
 }

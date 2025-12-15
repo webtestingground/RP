@@ -7,17 +7,19 @@ export async function POST(request: NextRequest) {
   try {
     const { message, history, personaId } = await request.json();
 
-    if (!message || typeof message !== 'string') {
+    // Validate input
+    if (!message || typeof message !== 'string' || message.trim().length === 0) {
       return NextResponse.json(
-        { success: false, error: 'Message is required' },
+        { success: false, error: 'A valid message is required' },
         { status: 400 }
       );
     }
 
     // Check for API key
     if (!process.env.DEEPSEEK_API_KEY) {
+      console.error('DeepSeek API key is not configured');
       return NextResponse.json(
-        { success: false, error: 'DeepSeek API key not configured' },
+        { success: false, error: 'API configuration error' },
         { status: 500 }
       );
     }
@@ -27,22 +29,34 @@ export async function POST(request: NextRequest) {
 
     if (!persona) {
       return NextResponse.json(
-        { success: false, error: 'Invalid persona' },
+        { success: false, error: 'Invalid persona selected' },
         { status: 400 }
       );
     }
 
     // Combine persona prompt with user profile
     const userProfilePrompt = getUserProfilePrompt();
-    const systemPrompt = persona.systemPrompt + '\n\n' + userProfilePrompt;
+    const systemPrompt = `${persona.systemPrompt}\n\n${userProfilePrompt}`;
 
-    // Prepare conversation history
-    const conversationHistory: ChatMessage[] = Array.isArray(history)
-      ? history.slice(-10).map((msg: any) => ({
-          role: msg.role === 'user' ? 'user' : 'assistant',
-          content: msg.content,
-        }))
-      : [];
+    // Prepare conversation history with validation
+    const conversationHistory: ChatMessage[] = [];
+    if (Array.isArray(history)) {
+      for (const msg of history.slice(-10)) {
+        if (msg && typeof msg === 'object' && msg.content && typeof msg.content === 'string') {
+          const role = msg.role === 'user' ? 'user' : 'assistant';
+          conversationHistory.push({
+            role,
+            content: msg.content.trim(),
+          });
+        }
+      }
+    }
+
+    // Add current user message to history
+    conversationHistory.push({
+      role: 'user',
+      content: message.trim(),
+    });
 
     // Generate response
     const response = await generateChatResponse(conversationHistory, systemPrompt);
@@ -57,7 +71,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to generate response',
+        error: error instanceof Error ? error.message : 'Internal server error',
       },
       { status: 500 }
     );

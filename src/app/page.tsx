@@ -35,7 +35,8 @@ export default function RoleplayChat() {
 
     const userMessage = input.trim();
     setInput('');
-    setMessages((prev) => [...prev, { role: 'user', content: userMessage }]);
+    const updatedMessages = [...messages, { role: 'user', content: userMessage }];
+    setMessages(updatedMessages);
     setIsLoading(true);
 
     try {
@@ -44,7 +45,7 @@ export default function RoleplayChat() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: userMessage,
-          history: messages,
+          history: messages, // Send current messages before adding user's new message
           personaId: selectedPersona.id,
         }),
       });
@@ -52,16 +53,16 @@ export default function RoleplayChat() {
       const data = await response.json();
 
       if (data.success) {
-        setMessages((prev) => [...prev, { role: 'assistant', content: data.message }]);
+        setMessages([...updatedMessages, { role: 'assistant', content: data.message }]);
       } else {
-        setMessages((prev) => [
-          ...prev,
+        setMessages([
+          ...updatedMessages,
           { role: 'assistant', content: data.error || 'Error occurred' },
         ]);
       }
     } catch {
-      setMessages((prev) => [
-        ...prev,
+      setMessages([
+        ...updatedMessages,
         { role: 'assistant', content: 'Network error. Please try again.' },
       ]);
     }
