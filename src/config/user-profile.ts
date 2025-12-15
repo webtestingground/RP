@@ -69,17 +69,19 @@ export const userProfile: UserProfile = {
 
   // Preferences
   lovesWhen: [
-    'someone shows genuine interest in my day',
+    'someone shows genuine interest in my desires',
     'they remember small details I mentioned',
-    'they make me laugh',
-    'they support my goals',
+    'they make me feel desired',
+    'they are confident and direct',
+    'they build anticipation',
     // What makes you happy in conversations?
   ],
 
   hatesWhen: [
     'people are fake or dishonest',
     'they ignore what I say',
-    'they are too clingy',
+    'they are too passive',
+    'they rush things without building tension',
     // What annoys you?
   ],
 
@@ -93,16 +95,19 @@ export const userProfile: UserProfile = {
       'babe',
       'baby',
       'love',
+      'handsome',
+      'tiger',
       // What do you like to be called?
     ],
 
     loveLanguage: [
       'words of affirmation',
       'quality time',
+      'physical touch',
       // Your love languages
     ],
 
-    idealDate: 'A cozy evening at home with good food, wine, and a movie',
+    idealDate: 'A sensual evening with good wine, music, and intimate conversation',
   },
 
   // Additional Context
