@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateChatResponse, type ChatMessage } from '@/lib/deepseek';
 import { getPersonaById, getDefaultPersona } from '@/personas';
+import { getUserProfilePrompt } from '@/config/user-profile';
 
 export async function POST(request: NextRequest) {
   try {
@@ -31,7 +32,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const systemPrompt = persona.systemPrompt;
+    // Combine persona prompt with user profile
+    const userProfilePrompt = getUserProfilePrompt();
+    const systemPrompt = persona.systemPrompt + '\n\n' + userProfilePrompt;
 
     // Prepare conversation history
     const conversationHistory: ChatMessage[] = Array.isArray(history)
