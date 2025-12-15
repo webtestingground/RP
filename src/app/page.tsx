@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { personas, type Persona } from '@/lib/personas';
+import { personas, type Persona } from '@/personas';
 
 interface Message {
   role: 'user' | 'assistant';

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateChatResponse, type ChatMessage } from '@/lib/deepseek';
-import { getPersonaById, getDefaultPersona } from '@/lib/personas';
+import { getPersonaById, getDefaultPersona } from '@/personas';
 
 export async function POST(request: NextRequest) {
   try {
