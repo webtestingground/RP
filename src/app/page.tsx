@@ -2,17 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { personas, type Persona } from '@/personas';
+import { UltravoxSession } from 'ultravox-client';
 import Link from 'next/link';
-
-// Dynamically import UltravoxSession to avoid build issues
-let UltravoxSession: any = null;
-if (typeof window !== 'undefined') {
-  import('ultravox-client').then(module => {
-    UltravoxSession = module.UltravoxSession;
-  }).catch(err => {
-    console.warn('Ultravox client not available:', err);
-  });
-}
 
 interface Message {
   role: 'user' | 'assistant';
@@ -219,13 +210,6 @@ export default function RoleplayChat() {
 
       console.log('✅ Ultravox session created:', data.callId);
       console.log('📞 Join URL:', data.joinUrl);
-
-      // Wait for UltravoxSession to be loaded
-      if (!UltravoxSession) {
-        console.log('⏳ Waiting for UltravoxSession to load...');
-        const UltravoxModule = await import('ultravox-client');
-        UltravoxSession = UltravoxModule.UltravoxSession;
-      }
 
       // Create Ultravox client session
       console.log('🔌 Creating UltravoxSession instance...');
