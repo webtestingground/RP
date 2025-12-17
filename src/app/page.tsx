@@ -2,11 +2,17 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { personas, type Persona } from '@/personas';
+import { UltravoxSession } from 'ultravox-client';
+import Link from 'next/link';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
 }
+
+// LocalStorage key prefix for saving chat history (per persona)
+const STORAGE_KEY_PREFIX = 'roleplay-chat-';
+const LAST_PERSONA_KEY = 'roleplay-last-persona';
 
 export default function RoleplayChat() {
   const [selectedPersona, setSelectedPersona] = useState<Persona>(personas[0]);
@@ -14,7 +20,13 @@ export default function RoleplayChat() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPersonaSelect, setShowPersonaSelect] = useState(true);
+  const [isInCall, setIsInCall] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const ultravoxSessionRef = useRef<UltravoxSession | null>(null);
+  const ULTRAVOX_VOICE_ID = '1769b283-36c6-4883-9c52-17bf75a29bc5'; // US English Female
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -24,18 +36,99 @@ export default function RoleplayChat() {
     scrollToBottom();
   }, [messages]);
 
+  // Helper function to get storage key for a persona
+  const getStorageKey = (personaId: string) => `${STORAGE_KEY_PREFIX}${personaId}`;
+
+  // Load last used persona and their chat on mount
+  useEffect(() => {
+    try {
+      const lastPersonaId = localStorage.getItem(LAST_PERSONA_KEY);
+      if (lastPersonaId) {
+        const persona = personas.find(p => p.id === lastPersonaId);
+        if (persona) {
+          const saved = localStorage.getItem(getStorageKey(lastPersonaId));
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed.messages) && parsed.messages.length > 0) {
+              setSelectedPersona(persona);
+              setMessages(parsed.messages);
+              setShowPersonaSelect(false);
+              console.log('✅ Loaded saved chat for', persona.name);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error loading chat history:', error);
+    }
+  }, []);
+
+  // Save chat history whenever messages change
+  useEffect(() => {
+    if (messages.length > 0 && !showPersonaSelect) {
+      try {
+        const dataToSave = {
+          messages: messages,
+          timestamp: new Date().toISOString(),
+        };
+        localStorage.setItem(getStorageKey(selectedPersona.id), JSON.stringify(dataToSave));
+        localStorage.setItem(LAST_PERSONA_KEY, selectedPersona.id);
+        console.log('💾 Saved chat for', selectedPersona.name);
+      } catch (error) {
+        console.error('❌ Error saving chat:', error);
+      }
+    }
+  }, [messages, selectedPersona.id, showPersonaSelect]);
+
   const startChat = (persona: Persona) => {
+    // Check if this persona has saved chat
+    try {
+      const saved = localStorage.getItem(getStorageKey(persona.id));
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed.messages) && parsed.messages.length > 0) {
+          // Load existing chat
+          setSelectedPersona(persona);
+          setMessages(parsed.messages);
+          setShowPersonaSelect(false);
+          console.log('📖 Loaded existing chat for', persona.name);
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error loading persona chat:', error);
+    }
+
+    // No saved chat, start fresh
     setSelectedPersona(persona);
-    setMessages([{ role: 'assistant', content: persona.greeting }]);
+    setMessages([{ role: 'assistant' as const, content: persona.greeting }]);
     setShowPersonaSelect(false);
+    console.log('🆕 Started new chat with', persona.name);
+  };
+
+  const clearHistory = () => {
+    if (confirm('Are you sure you want to clear all chat history for ALL personas? This cannot be undone.')) {
+      try {
+        // Clear all persona chats
+        personas.forEach(persona => {
+          localStorage.removeItem(getStorageKey(persona.id));
+        });
+        localStorage.removeItem(LAST_PERSONA_KEY);
+        setMessages([]);
+        setShowPersonaSelect(true);
+        console.log('🗑️ Cleared all chat history');
+      } catch (error) {
+        console.error('❌ Error clearing history:', error);
+      }
+    }
   };
 
   const sendMessage = async () => {
-    if (!input.trim() || isLoading) return;
+    const messageText = input.trim();
+    if (!messageText || isLoading || isInCall) return; // Don't send text messages during voice call
 
-    const userMessage = input.trim();
     setInput('');
-    const updatedMessages = [...messages, { role: 'user', content: userMessage }];
+    const updatedMessages: Message[] = [...messages, { role: 'user' as const, content: messageText }];
     setMessages(updatedMessages);
     setIsLoading(true);
 
@@ -44,8 +137,8 @@ export default function RoleplayChat() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: userMessage,
-          history: messages, // Send current messages before adding user's new message
+          message: messageText,
+          history: messages,
           personaId: selectedPersona.id,
         }),
       });
@@ -53,22 +146,161 @@ export default function RoleplayChat() {
       const data = await response.json();
 
       if (data.success) {
-        setMessages([...updatedMessages, { role: 'assistant', content: data.message }]);
+        setMessages([...updatedMessages, { role: 'assistant' as const, content: data.message }]);
       } else {
         setMessages([
           ...updatedMessages,
-          { role: 'assistant', content: data.error || 'Error occurred' },
+          { role: 'assistant' as const, content: data.error || 'Error occurred' },
         ]);
       }
     } catch {
       setMessages([
         ...updatedMessages,
-        { role: 'assistant', content: 'Network error. Please try again.' },
+        { role: 'assistant' as const, content: 'Network error. Please try again.' },
       ]);
     }
 
     setIsLoading(false);
+
+    // Auto-focus input after sending message
+    inputRef.current?.focus();
   };
+
+  // Start Ultravox voice call
+  const startCall = async () => {
+    if (typeof window === 'undefined') return;
+
+    try {
+      setIsInCall(true);
+      console.log('📞 Starting Ultravox call with', selectedPersona.name);
+
+      // Check for microphone permission
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(track => track.stop());
+        console.log('✅ Microphone permission granted');
+      } catch (micError) {
+        console.error('❌ Microphone permission denied:', micError);
+        throw new Error('Microphone access denied. Please allow microphone access and try again.');
+      }
+
+      // Configure session with persona's system prompt
+      const systemPrompt = `${selectedPersona.systemPrompt}\n\nYou are having a voice conversation. Keep responses concise and natural for voice chat.`;
+
+      console.log('📤 Creating Ultravox session...');
+
+      // Create Ultravox session via backend API
+      const response = await fetch('/api/ultravox', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          personaId: selectedPersona.id,
+          systemPrompt: systemPrompt,
+        }),
+      });
+
+      console.log('📥 Backend response status:', response.status);
+
+      const data = await response.json();
+      console.log('📦 Backend response data:', data);
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to create session');
+      }
+
+      console.log('✅ Ultravox session created:', data.callId);
+      console.log('📞 Join URL:', data.joinUrl);
+
+      // Create Ultravox client session
+      console.log('🔌 Creating UltravoxSession instance...');
+      const session = new UltravoxSession();
+      ultravoxSessionRef.current = session;
+
+      console.log('📞 Joining call with URL:', data.joinUrl);
+      // Join the call using the join URL
+      await session.joinCall(data.joinUrl);
+      console.log('✅ Successfully joined call');
+
+      // Handle state changes
+      session.addEventListener('status', (event: any) => {
+        const status = event.state;
+        console.log('📞 Ultravox status:', status);
+
+        if (status === 'listening') {
+          setIsListening(true);
+          setIsSpeaking(false);
+        } else if (status === 'thinking' || status === 'speaking') {
+          setIsListening(false);
+          setIsSpeaking(status === 'speaking');
+        }
+      });
+
+      // Handle transcripts (user speech)
+      session.addEventListener('transcripts', (event: any) => {
+        const transcripts = event.transcripts || [];
+        const lastTranscript = transcripts[transcripts.length - 1];
+        if (lastTranscript?.text && lastTranscript?.isFinal) {
+          const userMessage = lastTranscript.text;
+          console.log('📝 You said:', userMessage);
+
+          // Add user message to chat
+          setMessages(prev => [...prev, { role: 'user' as const, content: userMessage }]);
+        }
+      });
+
+      // Handle AI responses
+      session.addEventListener('utterances', (event: any) => {
+        const utterances = event.utterances || [];
+        const lastUtterance = utterances[utterances.length - 1];
+        if (lastUtterance?.text) {
+          const aiMessage = lastUtterance.text;
+          console.log('🤖 AI said:', aiMessage);
+
+          // Add AI response to chat
+          setMessages(prev => {
+            // Check if this message already exists to avoid duplicates
+            const lastMsg = prev[prev.length - 1];
+            if (lastMsg?.content === aiMessage) return prev;
+            return [...prev, { role: 'assistant' as const, content: aiMessage }];
+          });
+        }
+      });
+
+      console.log('✅ Ultravox call connected and ready');
+
+    } catch (error: any) {
+      console.error('❌ Ultravox error:', error);
+      alert(`Failed to start voice call: ${error.message || 'Please check your internet connection.'}`);
+      setIsInCall(false);
+    }
+  };
+
+  // End Ultravox voice call
+  const endCall = async () => {
+    console.log('📞 Ending Ultravox call');
+
+    if (ultravoxSessionRef.current) {
+      try {
+        await ultravoxSessionRef.current.leaveCall();
+      } catch (error) {
+        console.error('❌ Error ending call:', error);
+      }
+      ultravoxSessionRef.current = null;
+    }
+
+    setIsInCall(false);
+    setIsListening(false);
+    setIsSpeaking(false);
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (ultravoxSessionRef.current) {
+        ultravoxSessionRef.current.leaveCall().catch(console.error);
+      }
+    };
+  }, []);
 
   if (showPersonaSelect) {
     return (
@@ -111,18 +343,63 @@ export default function RoleplayChat() {
             <span className="text-3xl">{selectedPersona.emoji}</span>
             <div>
               <h2 className="text-xl font-bold text-slate-900">{selectedPersona.name}</h2>
-              <p className="text-sm text-slate-600">{selectedPersona.tagline}</p>
+              <p className="text-sm text-slate-600">
+                {isInCall ? (
+                  <span className="flex items-center gap-2">
+                    <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-green-500"></span>
+                    {isListening ? '🎤 Listening...' : isSpeaking ? '🔊 Speaking...' : '📞 In Call'}
+                  </span>
+                ) : (
+                  selectedPersona.tagline
+                )}
+              </p>
             </div>
           </div>
-          <button
-            onClick={() => {
-              setShowPersonaSelect(true);
-              setMessages([]);
-            }}
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-          >
-            Change Persona
-          </button>
+          <div className="flex gap-2">
+            {!isInCall ? (
+              <>
+                <Link
+                  href="/recordings"
+                  className="rounded-lg border border-purple-500 bg-purple-50 px-3 md:px-4 py-2 text-sm font-medium text-purple-700 transition hover:bg-purple-100"
+                  title="View call recordings"
+                >
+                  🎙️<span className="hidden md:inline ml-1">Recordings</span>
+                </Link>
+                <button
+                  onClick={startCall}
+                  className="rounded-lg border border-green-500 bg-green-50 px-3 md:px-4 py-2 text-sm font-medium text-green-700 transition hover:bg-green-100"
+                  title="Start voice call"
+                >
+                  📞<span className="hidden md:inline ml-1">Call</span>
+                </button>
+                <button
+                  onClick={clearHistory}
+                  className="rounded-lg border border-red-300 bg-white px-3 md:px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
+                  title="Clear all chat history"
+                >
+                  🗑️<span className="hidden md:inline ml-1">Clear</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setShowPersonaSelect(true);
+                    setMessages([]);
+                  }}
+                  className="rounded-lg border border-slate-300 bg-white px-3 md:px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                >
+                  <span className="hidden md:inline">Change Persona</span>
+                  <span className="md:hidden">👤</span>
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={endCall}
+                className="animate-pulse rounded-lg border-2 border-red-500 bg-red-500 px-4 md:px-6 py-2 text-sm font-bold text-white shadow-lg transition hover:bg-red-600"
+                title="End voice call"
+              >
+                📞<span className="hidden md:inline ml-1">End Call</span>
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -132,14 +409,16 @@ export default function RoleplayChat() {
             <div className="flex-1 space-y-4 overflow-y-auto p-6 bg-gradient-to-b from-slate-50 to-white">
               {messages.map((msg, i) => (
                 <div key={i} className={'flex ' + (msg.role === 'user' ? 'justify-end' : 'justify-start')}>
-                  <div
-                    className={'max-w-[80%] rounded-2xl px-4 py-3 shadow-md ' + (
-                      msg.role === 'user'
-                        ? 'bg-gradient-to-r from-slate-700 to-slate-800 text-white border border-slate-900'
-                        : 'bg-white border-2 border-slate-300 text-slate-900'
-                    )}
-                  >
-                    <p className="whitespace-pre-wrap text-sm leading-relaxed font-medium">{msg.content}</p>
+                  <div className="max-w-[80%]">
+                    <div
+                      className={'rounded-2xl px-4 py-3 shadow-md ' + (
+                        msg.role === 'user'
+                          ? 'bg-gradient-to-r from-slate-700 to-slate-800 text-white border border-slate-900'
+                          : 'bg-white border-2 border-slate-300 text-slate-900'
+                      )}
+                    >
+                      <p className="whitespace-pre-wrap text-sm leading-relaxed font-medium">{msg.content}</p>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -160,24 +439,45 @@ export default function RoleplayChat() {
             </div>
 
             <div className="border-t border-slate-200 bg-slate-100 p-4">
-              <div className="flex gap-3">
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                  placeholder={selectedPersona.placeholderText}
-                  className="flex-1 rounded-xl border-2 border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none focus:border-slate-500 focus:ring-4 focus:ring-slate-200"
-                  disabled={isLoading}
-                />
-                <button
-                  onClick={sendMessage}
-                  disabled={isLoading || !input.trim()}
-                  className="rounded-xl bg-gradient-to-r from-slate-700 to-slate-900 px-6 py-3 font-bold text-white shadow-xl transition hover:from-slate-600 hover:to-slate-800 hover:shadow-2xl disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Send
-                </button>
-              </div>
+              {isInCall ? (
+                <div className="flex items-center justify-center gap-4 py-2">
+                  <div className="flex items-center gap-3 rounded-xl bg-gradient-to-r from-green-50 to-blue-50 px-6 py-4 shadow-lg">
+                    {isListening && (
+                      <div className="flex gap-1">
+                        <span className="h-8 w-1 animate-pulse rounded-full bg-green-500" style={{ animationDelay: '0s' }} />
+                        <span className="h-10 w-1 animate-pulse rounded-full bg-green-500" style={{ animationDelay: '0.1s' }} />
+                        <span className="h-12 w-1 animate-pulse rounded-full bg-green-500" style={{ animationDelay: '0.2s' }} />
+                        <span className="h-10 w-1 animate-pulse rounded-full bg-green-500" style={{ animationDelay: '0.3s' }} />
+                        <span className="h-8 w-1 animate-pulse rounded-full bg-green-500" style={{ animationDelay: '0.4s' }} />
+                      </div>
+                    )}
+                    <span className="text-lg font-semibold text-slate-700">
+                      {isListening ? '🎤 Listening...' : isSpeaking ? '🔊 Speaking...' : isLoading ? '💭 Thinking...' : '📞 In Call'}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex gap-3">
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                    placeholder={selectedPersona.placeholderText}
+                    className="flex-1 rounded-xl border-2 border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none focus:border-slate-500 focus:ring-4 focus:ring-slate-200"
+                    disabled={isLoading}
+                    autoFocus
+                  />
+                  <button
+                    onClick={() => sendMessage()}
+                    disabled={isLoading || !input.trim()}
+                    className="rounded-xl bg-gradient-to-r from-slate-700 to-slate-900 px-6 py-3 font-bold text-white shadow-xl transition hover:from-slate-600 hover:to-slate-800 hover:shadow-2xl disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Send
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
