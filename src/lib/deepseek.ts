@@ -1,12 +1,19 @@
 import OpenAI from 'openai';
 
-// Initialize DeepSeek client (OpenAI-compatible)
-const deepseek = new OpenAI({
-  apiKey: process.env.DEEPSEEK_API_KEY,
-  baseURL: 'https://api.deepseek.com',
-});
-
 export const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
+
+// Lazy initialization - only create client when needed (not during build)
+let deepseek: OpenAI | null = null;
+
+function getDeepSeekClient(): OpenAI {
+  if (!deepseek) {
+    deepseek = new OpenAI({
+      apiKey: process.env.DEEPSEEK_API_KEY || 'dummy-key-for-build',
+      baseURL: 'https://api.deepseek.com',
+    });
+  }
+  return deepseek;
+}
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -31,7 +38,8 @@ export async function generateChatResponse(
 ): Promise<ChatResponse> {
   try {
     console.log('🟢 Using DeepSeek...');
-    const response = await deepseek.chat.completions.create({
+    const client = getDeepSeekClient();
+    const response = await client.chat.completions.create({
       model: DEEPSEEK_MODEL,
       messages: [
         { role: 'system', content: systemPrompt },
@@ -59,5 +67,3 @@ export async function generateChatResponse(
     throw new Error('Failed to generate response. Please try again.');
   }
 }
-
-export default deepseek;
