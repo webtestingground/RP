@@ -8,11 +8,43 @@ import Link from 'next/link';
 interface Message {
   role: 'user' | 'assistant';
   content: string;
+  image?: {
+    context: string;
+    url: string;
+    number: number;
+  };
 }
 
 // LocalStorage key prefix for saving chat history (per persona)
 const STORAGE_KEY_PREFIX = 'roleplay-chat-';
 const LAST_PERSONA_KEY = 'roleplay-last-persona';
+const IMAGE_COUNTERS_KEY = 'roleplay-image-counters';
+
+// Image counter helper functions
+const loadImageCounters = (): Record<string, Record<string, number>> => {
+  if (typeof window === 'undefined') return {};
+  const stored = localStorage.getItem(IMAGE_COUNTERS_KEY);
+  return stored ? JSON.parse(stored) : {};
+};
+
+const saveImageCounters = (counters: Record<string, Record<string, number>>) => {
+  localStorage.setItem(IMAGE_COUNTERS_KEY, JSON.stringify(counters));
+};
+
+const getNextImageNumber = (personaId: string, context: string, maxCount: number): number => {
+  const counters = loadImageCounters();
+  const current = counters[personaId]?.[context] || 0;
+  const next = current + 1;
+  // Cycle back to 1 if exceeds max
+  return next > maxCount ? 1 : next;
+};
+
+const updateImageCounter = (personaId: string, context: string, number: number) => {
+  const counters = loadImageCounters();
+  if (!counters[personaId]) counters[personaId] = {};
+  counters[personaId][context] = number;
+  saveImageCounters(counters);
+};
 
 export default function RoleplayChat() {
   const [selectedPersona, setSelectedPersona] = useState<Persona>(personas[0]);
@@ -146,7 +178,35 @@ export default function RoleplayChat() {
       const data = await response.json();
 
       if (data.success) {
-        setMessages([...updatedMessages, { role: 'assistant' as const, content: data.message }]);
+        const assistantMessage: Message = {
+          role: 'assistant' as const,
+          content: data.message,
+        };
+
+        // Handle image if present
+        if (data.image) {
+          const { context, maxCount, personaId } = data.image;
+          console.log(`🖼️ Frontend received image data:`, data.image);
+
+          const imageNumber = getNextImageNumber(personaId, context, maxCount);
+          console.log(`🔢 Next image number for ${context}: ${imageNumber}`);
+
+          const filename = `${context}${imageNumber > 1 ? imageNumber : ''}.jpg`;
+          const imageUrl = `/personas/${personaId}/${filename}`;
+          console.log(`📁 Built image URL: ${imageUrl}`);
+
+          assistantMessage.image = {
+            context,
+            url: imageUrl,
+            number: imageNumber,
+          };
+
+          // Update counter in localStorage
+          updateImageCounter(personaId, context, imageNumber);
+          console.log(`✅ Updated counter for ${personaId}/${context} to ${imageNumber}`);
+        }
+
+        setMessages([...updatedMessages, assistantMessage]);
       } else {
         setMessages([
           ...updatedMessages,
@@ -418,6 +478,22 @@ export default function RoleplayChat() {
                       )}
                     >
                       <p className="whitespace-pre-wrap text-sm leading-relaxed font-medium">{msg.content}</p>
+
+                      {/* Image display */}
+                      {msg.image && (
+                        <div className="mt-3">
+                          <img
+                            src={msg.image.url}
+                            alt={`${msg.image.context} ${msg.image.number}`}
+                            className="rounded-lg max-w-full h-auto shadow-lg"
+                            loading="lazy"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              console.error(`Failed to load image: ${msg.image?.url}`);
+                            }}
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

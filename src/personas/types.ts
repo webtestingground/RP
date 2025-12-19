@@ -8,4 +8,7 @@ export interface Persona {
   greeting: string;
   placeholderText: string;
   color: string;
+  images?: {
+    [context: string]: number; // context -> max count (e.g., { bikini: 2, boobs: 3 })
+  };
 }

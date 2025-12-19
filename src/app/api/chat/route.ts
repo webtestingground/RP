@@ -61,9 +61,78 @@ export async function POST(request: NextRequest) {
     // Generate response
     const response = await generateChatResponse(conversationHistory, systemPrompt);
 
+    // Log the raw response to see what Diana is actually saying
+    console.log(`📝 Diana's raw response: "${response.message}"`);
+
+    // Parse for image tags
+    let responseMessage = response.message;
+    let imageTagRegex = /\[IMAGE:(\w+)\]/g;
+    let match = imageTagRegex.exec(responseMessage);
+    console.log(`🔍 Regex match result:`, match);
+
+    // FALLBACK: If no tag found but Diana is clearly responding to an image request
+    if (!match && persona.images) {
+      const userMessage = conversationHistory[conversationHistory.length - 1].content.toLowerCase();
+      const responseText = responseMessage.toLowerCase();
+
+      // Check if user asked for a specific image type
+      const contexts = Object.keys(persona.images);
+      for (const context of contexts) {
+        const hasRequestKeyword =
+          userMessage.includes('show') ||
+          userMessage.includes('send') ||
+          userMessage.includes('picture') ||
+          userMessage.includes('pic') ||
+          userMessage.includes('photo');
+
+        const mentionsContext = userMessage.includes(context);
+
+        const hasResponseKeyword =
+          responseText.includes('here you go') ||
+          responseText.includes('here\'s') ||
+          responseText.includes('here is') ||
+          responseText.includes('look at') ||
+          responseText.includes('enjoy') ||
+          responseText.includes('hope you like');
+
+        if (hasRequestKeyword && mentionsContext && hasResponseKeyword) {
+          console.log(`🔧 FALLBACK: Auto-detected ${context} image request, adding tag`);
+          responseMessage = responseMessage + ` [IMAGE:${context}]`;
+          match = imageTagRegex.exec(responseMessage);
+          break;
+        }
+      }
+    }
+
+    let imageData = null;
+    if (match) {
+      const context = match[1];
+      console.log(`🖼️ Image tag detected: [IMAGE:${context}]`);
+
+      // Get persona's max count for this context
+      const maxCount = persona?.images?.[context] || 0;
+      console.log(`📊 Max count for ${context}: ${maxCount}`);
+
+      if (maxCount > 0) {
+        // Return context - frontend will determine image number and build URL
+        imageData = {
+          context,
+          maxCount,
+          personaId: persona.id,
+        };
+        console.log(`✅ Returning image data:`, imageData);
+
+        // Remove tag from message
+        responseMessage = responseMessage.replace(imageTagRegex, '').trim();
+      } else {
+        console.warn(`❌ Persona ${persona.id} requested unknown image context: ${context}`);
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      message: response.message,
+      message: responseMessage,
+      image: imageData,
       usage: response.usage,
     });
   } catch (error) {

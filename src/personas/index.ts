@@ -13,6 +13,7 @@ export { savita } from './Savita';
 export { maria } from './Maria';
 export { rika } from './Rika';
 export { emma } from './Emma';
+export { natalia } from './Natalia';
 
 import { emily } from './emily';
 import { alex } from './alex';
@@ -28,9 +29,10 @@ import { savita } from './Savita';
 import { maria } from './Maria';
 import { rika } from './Rika';
 import { emma } from './Emma';
+import { natalia } from './Natalia';
 import { Persona } from './types';
 
-export const personas: Persona[] = [emily, alex, jordan, sarah, sophia, nsfw, ana, diana, olivia, nicki, savita, maria, rika, emma];
+export const personas: Persona[] = [emily, alex, jordan, sarah, sophia, nsfw, ana, diana, olivia, nicki, savita, maria, rika, emma, natalia];
 
 export function getPersonaById(id: string): Persona | undefined {
   return personas.find((p) => p.id === id);
