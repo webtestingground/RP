@@ -377,9 +377,15 @@ export default function RoleplayChat() {
         <main className="container mx-auto px-4 py-12">
           <div className="mx-auto max-w-4xl text-center">
             <h1 className="mb-4 text-5xl font-bold text-slate-900">Choose Your Companion 🎭</h1>
-            <p className="mb-12 text-lg text-slate-600">
+            <p className="mb-6 text-lg text-slate-600">
               Select a persona to start your roleplay conversation
             </p>
+            <Link
+              href="/group-chat"
+              className="mb-8 inline-block rounded-xl bg-gradient-to-r from-pink-500 to-purple-500 px-6 py-3 font-bold text-white shadow-lg transition hover:from-pink-600 hover:to-purple-600"
+            >
+              👯‍♀️ Try Group Chat (Multiple Personas)
+            </Link>
 
             <div className="grid gap-6 md:grid-cols-2">
               {personas.map((persona) => (
