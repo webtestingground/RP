@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateChatResponse, type ChatMessage } from '@/lib/deepseek';
+import { generateChatResponse, generateVisionChatResponse, type ChatMessage, type VisionMessage } from '@/lib/deepseek';
 import { getPersonaById } from '@/personas';
 import { getUserProfilePrompt } from '@/config/user-profile';
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, history, personaIds } = await request.json();
+    const { message, history, personaIds, image } = await request.json();
 
     // Validate input
     if (!message || typeof message !== 'string' || message.trim().length === 0) {
@@ -43,11 +43,12 @@ export async function POST(request: NextRequest) {
 
     const userProfilePrompt = getUserProfilePrompt();
     const userMessage = message.toLowerCase();
+    const hasImage = image && typeof image === 'string' && image.startsWith('data:image');
 
     // Prepare conversation history
     const baseHistory: ChatMessage[] = [];
     if (Array.isArray(history)) {
-      for (const msg of history.slice(-15)) {
+      for (const msg of history.slice(-10)) {
         if (msg && typeof msg === 'object' && msg.content && typeof msg.content === 'string') {
           const role = msg.role === 'user' ? 'user' : 'assistant';
           baseHistory.push({
@@ -58,11 +59,28 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Add current user message
-    baseHistory.push({
-      role: 'user',
-      content: message.trim(),
-    });
+    // Add current user message (for text-only)
+    if (!hasImage) {
+      baseHistory.push({
+        role: 'user',
+        content: message.trim(),
+      });
+    }
+
+    // Prepare vision history if image is present
+    const visionHistory: VisionMessage[] = hasImage ? [
+      ...baseHistory.slice(-5).map(msg => ({
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+      })),
+      {
+        role: 'user' as const,
+        content: [
+          { type: 'image_url' as const, image_url: { url: image } },
+          { type: 'text' as const, text: message.trim() || 'What do you think of this?' },
+        ],
+      },
+    ] : [];
 
     // Determine who should respond based on context
     const personaNames = personas.map((p: any) => p.name.toLowerCase());
@@ -128,7 +146,9 @@ CORRECT FORMAT (do this):
       const systemPrompt = `${persona.systemPrompt}\n\n${groupContext}\n\n${userProfilePrompt}`;
 
       // Generate response for this persona
-      const response = await generateChatResponse(baseHistory, systemPrompt);
+      const response = hasImage
+        ? await generateVisionChatResponse(visionHistory, systemPrompt)
+        : await generateChatResponse(baseHistory, systemPrompt);
 
       let responseMessage = response.message;
 

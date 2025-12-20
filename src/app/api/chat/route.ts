@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateChatResponse, type ChatMessage } from '@/lib/deepseek';
+import { generateChatResponse, generateVisionChatResponse, type ChatMessage, type VisionMessage } from '@/lib/deepseek';
 import { getPersonaById, getDefaultPersona } from '@/personas';
 import { getUserProfilePrompt } from '@/config/user-profile';
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, history, personaId } = await request.json();
+    const { message, history, personaId, image } = await request.json();
 
     // Validate input
     if (!message || typeof message !== 'string' || message.trim().length === 0) {
@@ -38,28 +38,62 @@ export async function POST(request: NextRequest) {
     const userProfilePrompt = getUserProfilePrompt();
     const systemPrompt = `${persona.systemPrompt}\n\n${userProfilePrompt}`;
 
-    // Prepare conversation history with validation
-    const conversationHistory: ChatMessage[] = [];
-    if (Array.isArray(history)) {
-      for (const msg of history.slice(-10)) {
-        if (msg && typeof msg === 'object' && msg.content && typeof msg.content === 'string') {
-          const role = msg.role === 'user' ? 'user' : 'assistant';
-          conversationHistory.push({
-            role,
-            content: msg.content.trim(),
-          });
+    // Check if this request includes an image
+    const hasImage = image && typeof image === 'string' && image.startsWith('data:image');
+
+    let response;
+
+    if (hasImage) {
+      // Vision request with image
+      console.log('📸 Processing image message...');
+
+      // Prepare vision history (last 5 messages only to save tokens)
+      const visionHistory: VisionMessage[] = [];
+      if (Array.isArray(history)) {
+        for (const msg of history.slice(-5)) {
+          if (msg && typeof msg === 'object' && msg.content && typeof msg.content === 'string') {
+            const role = msg.role === 'user' ? 'user' : 'assistant';
+            visionHistory.push({
+              role,
+              content: msg.content.trim(),
+            });
+          }
         }
       }
+
+      // Add current user message with image
+      visionHistory.push({
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: image } },
+          { type: 'text', text: message.trim() || 'What do you see in this image? React to it in character.' },
+        ],
+      });
+
+      response = await generateVisionChatResponse(visionHistory, systemPrompt);
+    } else {
+      // Regular text-only request
+      const conversationHistory: ChatMessage[] = [];
+      if (Array.isArray(history)) {
+        for (const msg of history.slice(-10)) {
+          if (msg && typeof msg === 'object' && msg.content && typeof msg.content === 'string') {
+            const role = msg.role === 'user' ? 'user' : 'assistant';
+            conversationHistory.push({
+              role,
+              content: msg.content.trim(),
+            });
+          }
+        }
+      }
+
+      // Add current user message to history
+      conversationHistory.push({
+        role: 'user',
+        content: message.trim(),
+      });
+
+      response = await generateChatResponse(conversationHistory, systemPrompt);
     }
-
-    // Add current user message to history
-    conversationHistory.push({
-      role: 'user',
-      content: message.trim(),
-    });
-
-    // Generate response
-    const response = await generateChatResponse(conversationHistory, systemPrompt);
 
     // Log the raw response to see what Diana is actually saying
     console.log(`📝 Diana's raw response: "${response.message}"`);
@@ -71,8 +105,8 @@ export async function POST(request: NextRequest) {
     console.log(`🔍 Regex match result:`, match);
 
     // FALLBACK: If no tag found but persona is clearly responding to an image request
-    if (!match && persona.images) {
-      const userMessage = conversationHistory[conversationHistory.length - 1].content.toLowerCase();
+    if (!match && persona.images && !hasImage) {
+      const userMessage = message.trim().toLowerCase();
       const responseText = responseMessage.toLowerCase();
 
       // Check if user asked for a picture

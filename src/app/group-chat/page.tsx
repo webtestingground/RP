@@ -15,6 +15,7 @@ interface Message {
     url: string;
     number: number;
   };
+  userImage?: string; // Base64 image sent by user
 }
 
 // LocalStorage keys for group chat
@@ -37,8 +38,10 @@ export default function GroupChat() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPersonaSelect, setShowPersonaSelect] = useState(true);
+  const [pendingImage, setPendingImage] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -139,12 +142,47 @@ export default function GroupChat() {
     console.log('🆕 Started new group chat');
   };
 
+  // Handle image file selection
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image too large. Max 5MB allowed.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      setPendingImage(base64);
+    };
+    reader.readAsDataURL(file);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const sendMessage = async () => {
     const messageText = input.trim();
-    if (!messageText || isLoading) return;
+    const imageToSend = pendingImage;
+
+    if ((!messageText && !imageToSend) || isLoading) return;
 
     setInput('');
-    const userMessage: Message = { role: 'user', content: messageText };
+    setPendingImage(null);
+
+    const userMessage: Message = {
+      role: 'user',
+      content: messageText || (imageToSend ? 'Sent an image' : ''),
+      userImage: imageToSend || undefined,
+    };
     const updatedMessages: Message[] = [...messages, userMessage];
     setMessages(updatedMessages);
     setIsLoading(true);
@@ -154,12 +192,13 @@ export default function GroupChat() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: messageText,
+          message: messageText || 'What do you think of this?',
           history: messages.map(m => ({
             role: m.role,
             content: m.personaName ? `${m.personaName}: ${m.content}` : m.content,
           })),
           personaIds: selectedPersonas.map(p => p.id),
+          image: imageToSend,
         }),
       });
 
@@ -384,6 +423,17 @@ export default function GroupChat() {
                           : getPersonaColor(msg.personaId)
                       )}
                     >
+                      {/* User sent image */}
+                      {msg.userImage && (
+                        <div className="mb-2">
+                          <img
+                            src={msg.userImage}
+                            alt="Sent image"
+                            className="rounded-lg max-w-full max-h-64 h-auto shadow-lg"
+                          />
+                        </div>
+                      )}
+
                       <p className="whitespace-pre-wrap text-sm leading-relaxed font-medium">{msg.content}</p>
 
                       {msg.image && (
@@ -421,25 +471,60 @@ export default function GroupChat() {
 
             {/* Input */}
             <div className="border-t border-slate-200 bg-slate-100 p-4">
-              <div className="flex gap-3">
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                  placeholder={`Message ${selectedPersonas.map(p => p.name).join(' & ')}...`}
-                  className="flex-1 rounded-xl border-2 border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none focus:border-pink-500 focus:ring-4 focus:ring-pink-200"
-                  disabled={isLoading}
-                  autoFocus
-                />
-                <button
-                  onClick={sendMessage}
-                  disabled={isLoading || !input.trim()}
-                  className="rounded-xl bg-gradient-to-r from-pink-500 to-amber-500 px-6 py-3 font-bold text-white shadow-xl transition hover:from-pink-600 hover:to-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Send
-                </button>
+              <div className="space-y-2">
+                {/* Pending image preview */}
+                {pendingImage && (
+                  <div className="relative inline-block">
+                    <img
+                      src={pendingImage}
+                      alt="Pending"
+                      className="h-20 w-20 rounded-lg object-cover border-2 border-slate-300"
+                    />
+                    <button
+                      onClick={() => setPendingImage(null)}
+                      className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-red-500 text-white text-sm font-bold hover:bg-red-600"
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
+                <div className="flex gap-3">
+                  {/* Hidden file input */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageSelect}
+                    className="hidden"
+                  />
+                  {/* Image upload button */}
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isLoading}
+                    className="rounded-xl border-2 border-slate-300 bg-white px-4 py-3 text-lg transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    title="Send image"
+                  >
+                    📷
+                  </button>
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                    placeholder={pendingImage ? 'Add a message (optional)...' : `Message ${selectedPersonas.map(p => p.name).join(' & ')}...`}
+                    className="flex-1 rounded-xl border-2 border-slate-300 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none focus:border-pink-500 focus:ring-4 focus:ring-pink-200"
+                    disabled={isLoading}
+                    autoFocus
+                  />
+                  <button
+                    onClick={sendMessage}
+                    disabled={isLoading || (!input.trim() && !pendingImage)}
+                    className="rounded-xl bg-gradient-to-r from-pink-500 to-amber-500 px-6 py-3 font-bold text-white shadow-xl transition hover:from-pink-600 hover:to-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Send
+                  </button>
+                </div>
               </div>
             </div>
           </div>
