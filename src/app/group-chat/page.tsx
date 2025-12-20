@@ -142,13 +142,13 @@ export default function GroupChat() {
 
   const getPersonaColor = (personaId?: string): string => {
     if (!personaId) return 'bg-white border-slate-200';
-    const index = selectedPersonas.findIndex(p => p.id === personaId);
-    const colors = [
-      'bg-pink-50 border-pink-300',
-      'bg-amber-50 border-amber-300',
-      'bg-purple-50 border-purple-300',
-    ];
-    return colors[index % colors.length];
+    // Fixed colors per persona
+    const personaColors: Record<string, string> = {
+      'ana': 'bg-pink-100 border-pink-400',
+      'maya': 'bg-amber-100 border-amber-400',
+      'lamis': 'bg-rose-100 border-rose-400',
+    };
+    return personaColors[personaId] || 'bg-purple-50 border-purple-300';
   };
 
   if (showPersonaSelect) {
