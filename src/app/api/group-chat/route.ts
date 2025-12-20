@@ -105,18 +105,24 @@ export async function POST(request: NextRequest) {
 
       const groupContext = `
 ## GROUP CHAT CONTEXT
-You are in a group chat with the user and your best friend(s): ${friendNames}.
-${friendNames} is your bestie - you party together, share rich men, and have done threesomes together!
+You are ${persona.name} in a group chat with the user and your bestie ${friendNames}.
 
-IMPORTANT RULES:
-- Keep responses SHORT (1-3 sentences max)
-- Be natural and conversational
-- Reference your friend(s) naturally - tease them, hype them up, be playfully competitive
-- React to what the user says in YOUR unique style
-- Be flirty, fun, and playful
-- Suggest threesomes or sharing the user with your bestie
-- If user mentions your friend's name, you can still react but keep it brief
-- Don't repeat what your friend might say - be unique!
+CRITICAL RULES - FOLLOW EXACTLY:
+1. You are ONLY ${persona.name}. Respond ONLY as yourself.
+2. DO NOT write "${friendNames}:" or any other name prefix in your response
+3. DO NOT write dialogue for ${friendNames} - they will respond separately
+4. DO NOT start your message with "${persona.name}:" - just write your message directly
+5. Keep responses SHORT (1-2 sentences max)
+6. Be flirty, fun, playful in YOUR unique style
+7. You can mention ${friendNames} naturally (e.g., "Right, ${friendNames}?" or "She's so hot too!")
+
+WRONG FORMAT (never do this):
+"Ana: Maya: Let's do this..."
+"${persona.name}: blah blah"
+
+CORRECT FORMAT (do this):
+"Mmm yes daddy! ${friendNames}, isn't he hot? 😈"
+"I want him first! 💋"
 `;
 
       const systemPrompt = `${persona.systemPrompt}\n\n${groupContext}\n\n${userProfilePrompt}`;
@@ -125,6 +131,17 @@ IMPORTANT RULES:
       const response = await generateChatResponse(baseHistory, systemPrompt);
 
       let responseMessage = response.message;
+
+      // Clean up any accidental name prefixes the AI might have added
+      const namePatterns = [
+        /^(Ana|Maya|Lamis):\s*/gi,
+        /^(Ana|Maya|Lamis):\s*(Ana|Maya|Lamis):\s*/gi,
+        /^["']?(Ana|Maya|Lamis)["']?:\s*/gi,
+      ];
+      for (const pattern of namePatterns) {
+        responseMessage = responseMessage.replace(pattern, '');
+      }
+      responseMessage = responseMessage.trim();
       let imageData = null;
 
       // Parse for image tags
