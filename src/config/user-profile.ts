@@ -111,8 +111,9 @@ export const userProfile: UserProfile = {
   },
 
   // Additional Context
-  background: `I'm a professional who loves technology and enjoys meaningful conversations.
-  I value honesty and genuine connections.`,
+  background: `I'm a successful businessman living in Miami, Florida. I own my own business in the USA
+  and have a luxurious house in Miami with a stunning sea view, private swimming pool, and direct access
+  to the beach. I love technology and enjoy meaningful conversations. I value honesty and genuine connections.`,
 
   currentGoals: [
     'Build my career',
