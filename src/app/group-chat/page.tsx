@@ -17,6 +17,15 @@ interface Message {
   };
 }
 
+// LocalStorage keys for group chat
+const GROUP_CHAT_PREFIX = 'group-chat-';
+const LAST_GROUP_KEY = 'group-chat-last';
+
+// Helper to get storage key from persona IDs (sorted for consistency)
+const getGroupStorageKey = (personaIds: string[]): string => {
+  return GROUP_CHAT_PREFIX + [...personaIds].sort().join('-');
+};
+
 // Helper to get random image number
 const getRandomImageNumber = (maxCount: number): number => {
   return Math.floor(Math.random() * maxCount) + 1;
@@ -39,6 +48,56 @@ export default function GroupChat() {
     scrollToBottom();
   }, [messages]);
 
+  // Load last group chat on mount
+  useEffect(() => {
+    try {
+      const lastGroup = localStorage.getItem(LAST_GROUP_KEY);
+      if (lastGroup) {
+        const personaIds = JSON.parse(lastGroup) as string[];
+        if (Array.isArray(personaIds) && personaIds.length >= 2) {
+          const foundPersonas = personaIds
+            .map(id => groupChatPersonas.find(p => p.id === id))
+            .filter(Boolean) as Persona[];
+
+          if (foundPersonas.length >= 2) {
+            const storageKey = getGroupStorageKey(personaIds);
+            const saved = localStorage.getItem(storageKey);
+            if (saved) {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed.messages) && parsed.messages.length > 0) {
+                setSelectedPersonas(foundPersonas);
+                setMessages(parsed.messages);
+                setShowPersonaSelect(false);
+                console.log('✅ Loaded saved group chat');
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error loading group chat history:', error);
+    }
+  }, []);
+
+  // Save chat history whenever messages change
+  useEffect(() => {
+    if (messages.length > 0 && !showPersonaSelect && selectedPersonas.length >= 2) {
+      try {
+        const personaIds = selectedPersonas.map(p => p.id);
+        const storageKey = getGroupStorageKey(personaIds);
+        const dataToSave = {
+          messages: messages,
+          timestamp: new Date().toISOString(),
+        };
+        localStorage.setItem(storageKey, JSON.stringify(dataToSave));
+        localStorage.setItem(LAST_GROUP_KEY, JSON.stringify(personaIds));
+        console.log('💾 Saved group chat');
+      } catch (error) {
+        console.error('❌ Error saving group chat:', error);
+      }
+    }
+  }, [messages, selectedPersonas, showPersonaSelect]);
+
   const togglePersona = (persona: Persona) => {
     setSelectedPersonas(prev => {
       const exists = prev.find(p => p.id === persona.id);
@@ -55,8 +114,29 @@ export default function GroupChat() {
       alert('Please select at least 2 personas for group chat!');
       return;
     }
+
+    // Check for existing saved chat with these personas
+    try {
+      const personaIds = selectedPersonas.map(p => p.id);
+      const storageKey = getGroupStorageKey(personaIds);
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed.messages) && parsed.messages.length > 0) {
+          setMessages(parsed.messages);
+          setShowPersonaSelect(false);
+          console.log('📖 Loaded existing group chat');
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error loading saved group chat:', error);
+    }
+
+    // No saved chat, start fresh
     setMessages([]);
     setShowPersonaSelect(false);
+    console.log('🆕 Started new group chat');
   };
 
   const sendMessage = async () => {
@@ -241,6 +321,20 @@ export default function GroupChat() {
             >
               Solo Chat
             </Link>
+            <button
+              onClick={() => {
+                if (confirm('Clear this group chat history?')) {
+                  const personaIds = selectedPersonas.map(p => p.id);
+                  const storageKey = getGroupStorageKey(personaIds);
+                  localStorage.removeItem(storageKey);
+                  setMessages([]);
+                  console.log('🗑️ Cleared group chat history');
+                }
+              }}
+              className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100"
+            >
+              Clear
+            </button>
             <button
               onClick={() => {
                 setShowPersonaSelect(true);
