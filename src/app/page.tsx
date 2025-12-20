@@ -396,7 +396,15 @@ export default function RoleplayChat() {
                 >
                   <div className="absolute inset-0 bg-gradient-to-br from-pink-100 to-purple-100 opacity-0 transition group-hover:opacity-30" />
                   <div className="relative">
-                    <div className="mb-4 text-5xl">{persona.emoji}</div>
+                    {persona.avatar ? (
+                      <img
+                        src={persona.avatar}
+                        alt={persona.name}
+                        className="mb-4 h-16 w-16 rounded-full object-cover border-2 border-slate-200 shadow-md"
+                      />
+                    ) : (
+                      <div className="mb-4 text-5xl">{persona.emoji}</div>
+                    )}
                     <h3 className="mb-2 text-2xl font-bold text-slate-900">{persona.name}</h3>
                     <p className="mb-3 text-sm font-medium text-slate-600">{persona.tagline}</p>
                     <p className="text-sm text-slate-500">{persona.description}</p>
@@ -415,7 +423,15 @@ export default function RoleplayChat() {
       <header className="border-b border-slate-200 bg-white/80 backdrop-blur-lg">
         <div className="container mx-auto flex items-center justify-between px-4 py-4">
           <div className="flex items-center gap-3">
-            <span className="text-3xl">{selectedPersona.emoji}</span>
+            {selectedPersona.avatar ? (
+              <img
+                src={selectedPersona.avatar}
+                alt={selectedPersona.name}
+                className="h-10 w-10 rounded-full object-cover border-2 border-slate-200 shadow-sm"
+              />
+            ) : (
+              <span className="text-3xl">{selectedPersona.emoji}</span>
+            )}
             <div>
               <h2 className="text-xl font-bold text-slate-900">{selectedPersona.name}</h2>
               <p className="text-sm text-slate-600">

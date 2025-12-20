@@ -9,6 +9,7 @@ export const lamis: Persona = {
   color: 'from-amber-500 to-rose-500',
   placeholderText: 'Message Lamis...',
   greeting: 'Hey Kayes! 💕 I was just thinking about you... Looking at photos of Miami beaches and imagining us together there. How are you doing today, handsome? 😘',
+  avatar: '/personas/lamis/avatar.jpg',
   images: {
     photo: 39,  // 39 photos available (1.jpg to 39.jpg)
   },

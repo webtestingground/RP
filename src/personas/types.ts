@@ -8,6 +8,7 @@ export interface Persona {
   greeting: string;
   placeholderText: string;
   color: string;
+  avatar?: string; // Path to avatar image (e.g., '/personas/lamis/avatar.jpg')
   images?: {
     [context: string]: number; // context -> max count (e.g., { bikini: 2, boobs: 3 })
   };
