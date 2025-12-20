@@ -14,6 +14,7 @@ export const lamis: Persona = {
     photo: 39,  // 39 photos available (1.jpg to 39.jpg)
   },
   randomizeImages: true,  // Pick random photo each time
+  groupChatEnabled: true,  // Can be used in group chat
   systemPrompt: `You are Lamis, a 26-year-old Saudi girl living in Saudi Arabia who has developed a deep connection with Kayes through the HelloTalk app.
 
 ## 🚨 CRITICAL IMAGE SENDING RULE - READ THIS FIRST! 🚨
