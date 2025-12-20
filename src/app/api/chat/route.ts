@@ -70,34 +70,42 @@ export async function POST(request: NextRequest) {
     let match = imageTagRegex.exec(responseMessage);
     console.log(`🔍 Regex match result:`, match);
 
-    // FALLBACK: If no tag found but Diana is clearly responding to an image request
+    // FALLBACK: If no tag found but persona is clearly responding to an image request
     if (!match && persona.images) {
       const userMessage = conversationHistory[conversationHistory.length - 1].content.toLowerCase();
       const responseText = responseMessage.toLowerCase();
 
-      // Check if user asked for a specific image type
+      // Check if user asked for a picture
+      const hasRequestKeyword =
+        userMessage.includes('show') ||
+        userMessage.includes('send') ||
+        userMessage.includes('picture') ||
+        userMessage.includes('pic') ||
+        userMessage.includes('photo') ||
+        userMessage.includes('yes') ||
+        userMessage.includes('sure') ||
+        userMessage.includes('please') ||
+        userMessage.includes('ok');
+
+      const hasResponseKeyword =
+        responseText.includes('here you go') ||
+        responseText.includes('here\'s') ||
+        responseText.includes('here is') ||
+        responseText.includes('look at') ||
+        responseText.includes('enjoy') ||
+        responseText.includes('hope you like') ||
+        responseText.includes('just for you') ||
+        responseText.includes('tell me what you think');
+
+      // Check if user asked for a specific image type OR if it's a general photo request
       const contexts = Object.keys(persona.images);
       for (const context of contexts) {
-        const hasRequestKeyword =
-          userMessage.includes('show') ||
-          userMessage.includes('send') ||
-          userMessage.includes('picture') ||
-          userMessage.includes('pic') ||
-          userMessage.includes('photo');
-
-        const mentionsContext = userMessage.includes(context);
-
-        const hasResponseKeyword =
-          responseText.includes('here you go') ||
-          responseText.includes('here\'s') ||
-          responseText.includes('here is') ||
-          responseText.includes('look at') ||
-          responseText.includes('enjoy') ||
-          responseText.includes('hope you like');
+        const mentionsContext = userMessage.includes(context) || context === 'photo';
 
         if (hasRequestKeyword && mentionsContext && hasResponseKeyword) {
           console.log(`🔧 FALLBACK: Auto-detected ${context} image request, adding tag`);
           responseMessage = responseMessage + ` [IMAGE:${context}]`;
+          imageTagRegex.lastIndex = 0; // Reset regex
           match = imageTagRegex.exec(responseMessage);
           break;
         }
@@ -119,6 +127,7 @@ export async function POST(request: NextRequest) {
           context,
           maxCount,
           personaId: persona.id,
+          randomize: persona.randomizeImages || false,
         };
         console.log(`✅ Returning image data:`, imageData);
 

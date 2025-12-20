@@ -31,7 +31,12 @@ const saveImageCounters = (counters: Record<string, Record<string, number>>) => 
   localStorage.setItem(IMAGE_COUNTERS_KEY, JSON.stringify(counters));
 };
 
-const getNextImageNumber = (personaId: string, context: string, maxCount: number): number => {
+const getNextImageNumber = (personaId: string, context: string, maxCount: number, randomize: boolean = false): number => {
+  if (randomize) {
+    // Pick a random number between 1 and maxCount
+    return Math.floor(Math.random() * maxCount) + 1;
+  }
+
   const counters = loadImageCounters();
   const current = counters[personaId]?.[context] || 0;
   const next = current + 1;
@@ -185,13 +190,17 @@ export default function RoleplayChat() {
 
         // Handle image if present
         if (data.image) {
-          const { context, maxCount, personaId } = data.image;
+          const { context, maxCount, personaId, randomize } = data.image;
           console.log(`🖼️ Frontend received image data:`, data.image);
 
-          const imageNumber = getNextImageNumber(personaId, context, maxCount);
-          console.log(`🔢 Next image number for ${context}: ${imageNumber}`);
+          const imageNumber = getNextImageNumber(personaId, context, maxCount, randomize);
+          console.log(`🔢 ${randomize ? 'Random' : 'Next'} image number for ${context}: ${imageNumber}`);
 
-          const filename = `${context}${imageNumber > 1 ? imageNumber : ''}.jpg`;
+          // For randomized personas, use simple numbered files (1.jpg, 2.jpg)
+          // For cycling personas, use context-based names (bikini.jpg, bikini2.jpg)
+          const filename = randomize
+            ? `${imageNumber}.jpg`
+            : `${context}${imageNumber > 1 ? imageNumber : ''}.jpg`;
           const imageUrl = `/personas/${personaId}/${filename}`;
           console.log(`📁 Built image URL: ${imageUrl}`);
 
