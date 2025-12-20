@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
     }
 
     const userProfilePrompt = getUserProfilePrompt();
+    const userMessage = message.toLowerCase();
 
     // Prepare conversation history
     const baseHistory: ChatMessage[] = [];
@@ -63,24 +64,55 @@ export async function POST(request: NextRequest) {
       content: message.trim(),
     });
 
-    // Generate responses from each persona
+    // Determine who should respond based on context
+    const personaNames = personas.map((p: any) => p.name.toLowerCase());
+    let respondingPersonas = [...personas];
+
+    // Check if user mentioned a specific name
+    const mentionedPersona = personas.find((p: any) =>
+      userMessage.includes(p.name.toLowerCase())
+    );
+
+    if (mentionedPersona) {
+      // If user mentioned specific name, that persona responds
+      // 70% chance only that persona, 30% chance both
+      if (Math.random() < 0.7) {
+        respondingPersonas = [mentionedPersona];
+      }
+    } else {
+      // No specific name mentioned
+      // 40% chance only one responds, 60% chance both respond
+      if (Math.random() < 0.4) {
+        // Pick one randomly
+        const randomIndex = Math.floor(Math.random() * personas.length);
+        respondingPersonas = [personas[randomIndex]];
+      }
+    }
+
+    // Shuffle responding order for variety
+    respondingPersonas = respondingPersonas.sort(() => Math.random() - 0.5);
+
+    // Generate responses from selected personas
     const responses: { personaId: string; personaName: string; message: string; image?: any }[] = [];
 
-    // Create group context for each persona
     const otherPersonaNames = personas.map((p: any) => p.name);
 
-    for (const persona of personas) {
+    for (const persona of respondingPersonas) {
       if (!persona) continue;
 
       // Build group chat system prompt
       const groupContext = `
 ## GROUP CHAT CONTEXT
-You are in a group chat with the user and other personas: ${otherPersonaNames.filter((n: string) => n !== persona.name).join(', ')}.
-- Keep your responses SHORT (1-2 sentences max) since others are also responding
-- Stay in character as ${persona.name}
-- React naturally to what the user says
-- You can reference or playfully compete with the other personas
-- Be flirty and fun, each persona has their own style
+You are in a group chat with the user and your friend(s): ${otherPersonaNames.filter((n: string) => n !== persona.name).join(', ')}.
+
+IMPORTANT RULES:
+- Keep responses SHORT (1-3 sentences max)
+- Be natural and conversational
+- You can reference your friend(s) in the chat
+- React to what the user says in YOUR unique style
+- Be flirty, fun, and playful
+- If user mentions your friend's name specifically, you can still react but keep it brief
+- Don't repeat what your friend might say - be unique!
 `;
 
       const systemPrompt = `${persona.systemPrompt}\n\n${groupContext}\n\n${userProfilePrompt}`;
