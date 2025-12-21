@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateChatResponse, generateVisionChatResponse, type ChatMessage, type VisionMessage } from '@/lib/deepseek';
+import { generateChatResponse, type ChatMessage } from '@/lib/deepseek';
+import { analyzeImageWithGemini } from '@/lib/gemini';
 import { getPersonaById, getDefaultPersona } from '@/personas';
 import { getUserProfilePrompt } from '@/config/user-profile';
 
@@ -44,33 +45,28 @@ export async function POST(request: NextRequest) {
     let response;
 
     if (hasImage) {
-      // Vision request with image
-      console.log('📸 Processing image message...');
+      // Vision request with image - use Gemini
+      console.log('📸 Processing image message with Gemini...');
 
-      // Prepare vision history (last 5 messages only to save tokens)
-      const visionHistory: VisionMessage[] = [];
+      // Prepare chat history for context
+      const chatHistory: Array<{ role: string; content: string }> = [];
       if (Array.isArray(history)) {
         for (const msg of history.slice(-5)) {
           if (msg && typeof msg === 'object' && msg.content && typeof msg.content === 'string') {
-            const role = msg.role === 'user' ? 'user' : 'assistant';
-            visionHistory.push({
-              role,
+            chatHistory.push({
+              role: msg.role === 'user' ? 'user' : 'assistant',
               content: msg.content.trim(),
             });
           }
         }
       }
 
-      // Add current user message with image
-      visionHistory.push({
-        role: 'user',
-        content: [
-          { type: 'image_url', image_url: { url: image } },
-          { type: 'text', text: message.trim() || 'What do you see in this image? React to it in character.' },
-        ],
-      });
-
-      response = await generateVisionChatResponse(visionHistory, systemPrompt);
+      response = await analyzeImageWithGemini(
+        image,
+        message.trim() || 'What do you think of this?',
+        systemPrompt,
+        chatHistory
+      );
     } else {
       // Regular text-only request
       const conversationHistory: ChatMessage[] = [];
@@ -176,7 +172,7 @@ export async function POST(request: NextRequest) {
       success: true,
       message: responseMessage,
       image: imageData,
-      usage: response.usage,
+      usage: 'usage' in response ? response.usage : undefined,
     });
   } catch (error) {
     console.error('Chat API error:', error);

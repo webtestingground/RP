@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateChatResponse, generateVisionChatResponse, type ChatMessage, type VisionMessage } from '@/lib/deepseek';
+import { generateChatResponse, type ChatMessage } from '@/lib/deepseek';
+import { analyzeImageWithGemini } from '@/lib/gemini';
 import { getPersonaById } from '@/personas';
 import { getUserProfilePrompt } from '@/config/user-profile';
 
@@ -59,28 +60,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Add current user message (for text-only)
-    if (!hasImage) {
-      baseHistory.push({
-        role: 'user',
-        content: message.trim(),
-      });
-    }
-
-    // Prepare vision history if image is present
-    const visionHistory: VisionMessage[] = hasImage ? [
-      ...baseHistory.slice(-5).map(msg => ({
-        role: msg.role as 'user' | 'assistant',
-        content: msg.content,
-      })),
-      {
-        role: 'user' as const,
-        content: [
-          { type: 'image_url' as const, image_url: { url: image } },
-          { type: 'text' as const, text: message.trim() || 'What do you think of this?' },
-        ],
-      },
-    ] : [];
+    // Add current user message
+    baseHistory.push({
+      role: 'user',
+      content: message.trim(),
+    });
 
     // Determine who should respond based on context
     const personaNames = personas.map((p: any) => p.name.toLowerCase());
@@ -146,9 +130,22 @@ CORRECT FORMAT (do this):
       const systemPrompt = `${persona.systemPrompt}\n\n${groupContext}\n\n${userProfilePrompt}`;
 
       // Generate response for this persona
-      const response = hasImage
-        ? await generateVisionChatResponse(visionHistory, systemPrompt)
-        : await generateChatResponse(baseHistory, systemPrompt);
+      let response;
+      if (hasImage) {
+        // Use Gemini for image analysis
+        const chatHistory = baseHistory.slice(-5).map(msg => ({
+          role: msg.role,
+          content: msg.content,
+        }));
+        response = await analyzeImageWithGemini(
+          image,
+          message.trim() || 'What do you think of this?',
+          systemPrompt,
+          chatHistory
+        );
+      } else {
+        response = await generateChatResponse(baseHistory, systemPrompt);
+      }
 
       let responseMessage = response.message;
 
