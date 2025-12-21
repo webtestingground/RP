@@ -9,6 +9,7 @@ function getGeminiClient(): GoogleGenerativeAI {
     if (!apiKey) {
       throw new Error('GEMINI_API_KEY is not configured');
     }
+    console.log('🔑 Initializing Gemini with API key:', apiKey.substring(0, 10) + '...');
     genAI = new GoogleGenerativeAI(apiKey);
   }
   return genAI;
@@ -30,7 +31,9 @@ export async function analyzeImageWithGemini(
   try {
     console.log('🔮 Using Gemini Vision...');
     const client = getGeminiClient();
-    const model = client.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    // Try gemini-1.5-flash first, fallback models if needed
+    const model = client.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    console.log('📸 Model loaded: gemini-2.0-flash');
 
     // Extract base64 data and mime type
     const matches = imageBase64.match(/^data:(.+);base64,(.+)$/);
@@ -73,8 +76,12 @@ Look at the image and respond in character. React naturally to what you see in t
 
     console.log('✅ Gemini Vision succeeded');
     return { message: text };
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Gemini Vision failed:', error);
-    throw new Error('Failed to analyze image. Please check your Gemini API key.');
+    console.error('❌ Error details:', error?.message || error);
+    if (error?.status) {
+      console.error('❌ Status:', error.status, error.statusText);
+    }
+    throw new Error(`Failed to analyze image: ${error?.message || 'Unknown error'}`);
   }
 }

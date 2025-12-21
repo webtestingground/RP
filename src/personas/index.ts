@@ -16,6 +16,7 @@ export { emma } from './Emma';
 export { natalia } from './Natalia';
 export { lamis } from './Lamis';
 export { maya } from './Maya';
+export { jessica } from './Jessica';
 
 import { emily } from './emily';
 import { alex } from './alex';
@@ -34,9 +35,10 @@ import { emma } from './Emma';
 import { natalia } from './Natalia';
 import { lamis } from './Lamis';
 import { maya } from './Maya';
+import { jessica } from './Jessica';
 import { Persona } from './types';
 
-export const personas: Persona[] = [emily, alex, jordan, sarah, sophia, nsfw, ana, diana, olivia, nicki, savita, maria, rika, emma, natalia, lamis, maya];
+export const personas: Persona[] = [emily, alex, jordan, sarah, sophia, nsfw, ana, diana, olivia, nicki, savita, maria, rika, emma, natalia, lamis, maya, jessica];
 
 // Get only personas enabled for group chat
 export const groupChatPersonas: Persona[] = personas.filter(p => p.groupChatEnabled);
