@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateChatResponse, type ChatMessage } from '@/lib/deepseek';
-import { analyzeImageWithGemini } from '@/lib/gemini';
 import { getPersonaById } from '@/personas';
 import { getUserProfilePrompt } from '@/config/user-profile';
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, history, personaIds, image } = await request.json();
+    const { message, history, personaIds } = await request.json();
 
     // Validate input
     if (!message || typeof message !== 'string' || message.trim().length === 0) {
@@ -44,7 +43,6 @@ export async function POST(request: NextRequest) {
 
     const userProfilePrompt = getUserProfilePrompt();
     const userMessage = message.toLowerCase();
-    const hasImage = image && typeof image === 'string' && image.startsWith('data:image');
 
     // Prepare conversation history
     const baseHistory: ChatMessage[] = [];
@@ -130,22 +128,7 @@ CORRECT FORMAT (do this):
       const systemPrompt = `${persona.systemPrompt}\n\n${groupContext}\n\n${userProfilePrompt}`;
 
       // Generate response for this persona
-      let response;
-      if (hasImage) {
-        // Use Gemini for image analysis
-        const chatHistory = baseHistory.slice(-5).map(msg => ({
-          role: msg.role,
-          content: msg.content,
-        }));
-        response = await analyzeImageWithGemini(
-          image,
-          message.trim() || 'What do you think of this?',
-          systemPrompt,
-          chatHistory
-        );
-      } else {
-        response = await generateChatResponse(baseHistory, systemPrompt);
-      }
+      const response = await generateChatResponse(baseHistory, systemPrompt);
 
       let responseMessage = response.message;
 

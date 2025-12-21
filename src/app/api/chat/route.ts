@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateChatResponse, type ChatMessage } from '@/lib/deepseek';
-import { analyzeImageWithGemini } from '@/lib/gemini';
 import { getPersonaById, getDefaultPersona } from '@/personas';
 import { getUserProfilePrompt } from '@/config/user-profile';
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, history, personaId, image } = await request.json();
+    const { message, history, personaId } = await request.json();
 
     // Validate input
     if (!message || typeof message !== 'string' || message.trim().length === 0) {
@@ -39,57 +38,27 @@ export async function POST(request: NextRequest) {
     const userProfilePrompt = getUserProfilePrompt();
     const systemPrompt = `${persona.systemPrompt}\n\n${userProfilePrompt}`;
 
-    // Check if this request includes an image
-    const hasImage = image && typeof image === 'string' && image.startsWith('data:image');
-
-    let response;
-
-    if (hasImage) {
-      // Vision request with image - use Gemini
-      console.log('📸 Processing image message with Gemini...');
-
-      // Prepare chat history for context
-      const chatHistory: Array<{ role: string; content: string }> = [];
-      if (Array.isArray(history)) {
-        for (const msg of history.slice(-5)) {
-          if (msg && typeof msg === 'object' && msg.content && typeof msg.content === 'string') {
-            chatHistory.push({
-              role: msg.role === 'user' ? 'user' : 'assistant',
-              content: msg.content.trim(),
-            });
-          }
+    // Prepare conversation history
+    const conversationHistory: ChatMessage[] = [];
+    if (Array.isArray(history)) {
+      for (const msg of history.slice(-10)) {
+        if (msg && typeof msg === 'object' && msg.content && typeof msg.content === 'string') {
+          const role = msg.role === 'user' ? 'user' : 'assistant';
+          conversationHistory.push({
+            role,
+            content: msg.content.trim(),
+          });
         }
       }
-
-      response = await analyzeImageWithGemini(
-        image,
-        message.trim() || 'What do you think of this?',
-        systemPrompt,
-        chatHistory
-      );
-    } else {
-      // Regular text-only request
-      const conversationHistory: ChatMessage[] = [];
-      if (Array.isArray(history)) {
-        for (const msg of history.slice(-10)) {
-          if (msg && typeof msg === 'object' && msg.content && typeof msg.content === 'string') {
-            const role = msg.role === 'user' ? 'user' : 'assistant';
-            conversationHistory.push({
-              role,
-              content: msg.content.trim(),
-            });
-          }
-        }
-      }
-
-      // Add current user message to history
-      conversationHistory.push({
-        role: 'user',
-        content: message.trim(),
-      });
-
-      response = await generateChatResponse(conversationHistory, systemPrompt);
     }
+
+    // Add current user message to history
+    conversationHistory.push({
+      role: 'user',
+      content: message.trim(),
+    });
+
+    const response = await generateChatResponse(conversationHistory, systemPrompt);
 
     // Log the raw response to see what Diana is actually saying
     console.log(`📝 Diana's raw response: "${response.message}"`);
@@ -101,7 +70,7 @@ export async function POST(request: NextRequest) {
     console.log(`🔍 Regex match result:`, match);
 
     // FALLBACK: If no tag found but persona is clearly responding to an image request
-    if (!match && persona.images && !hasImage) {
+    if (!match && persona.images) {
       const userMessage = message.trim().toLowerCase();
       const responseText = responseMessage.toLowerCase();
 
@@ -172,7 +141,7 @@ export async function POST(request: NextRequest) {
       success: true,
       message: responseMessage,
       image: imageData,
-      usage: 'usage' in response ? response.usage : undefined,
+      usage: response.usage,
     });
   } catch (error) {
     console.error('Chat API error:', error);
