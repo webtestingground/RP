@@ -3,7 +3,12 @@
  *
  * Edit this file to define who YOU are so AI personas can chat with you accordingly.
  * All personas will read this profile and adapt their responses to match your preferences.
+ *
+ * Some personas have specific user profiles (e.g., Ashley uses kayes-delivery-boy)
  */
+
+import { kayesDeliveryBoy } from './profiles/kayes-delivery-boy';
+import { kayesStudent } from './profiles/kayes-student';
 
 export interface UserProfile {
   // Basic Info
@@ -39,6 +44,16 @@ export interface UserProfile {
   // Custom Instructions
   customInstructions?: string;  // Any special instructions for AI
 }
+
+/**
+ * Map of persona-specific user profiles
+ * Key: persona ID, Value: user profile
+ */
+export const personaProfiles: Record<string, UserProfile> = {
+  'ashley': kayesDeliveryBoy,
+  'amelia': kayesStudent,
+  // Add more persona-specific profiles here
+};
 
 /**
  * 👤 YOUR PROFILE - EDIT THIS!
@@ -133,9 +148,11 @@ export const userProfile: UserProfile = {
 
 /**
  * Generate a system prompt addition based on user profile
+ * @param personaId - Optional persona ID to get persona-specific profile
  */
-export function getUserProfilePrompt(): string {
-  const p = userProfile;
+export function getUserProfilePrompt(personaId?: string): string {
+  // Use persona-specific profile if available, otherwise use default
+  const p = personaId && personaProfiles[personaId] ? personaProfiles[personaId] : userProfile;
 
   const parts = [
     `## USER PROFILE`,

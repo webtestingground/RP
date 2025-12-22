@@ -41,7 +41,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const userProfilePrompt = getUserProfilePrompt();
     const userMessage = message.toLowerCase();
 
     // Prepare conversation history
@@ -125,7 +124,9 @@ CORRECT FORMAT (do this):
 "I want him first! 💋"
 `;
 
-      const systemPrompt = `${persona.systemPrompt}\n\n${groupContext}\n\n${userProfilePrompt}`;
+      // Get persona-specific user profile if available
+      const personaUserProfile = getUserProfilePrompt(persona.id);
+      const systemPrompt = `${persona.systemPrompt}\n\n${groupContext}\n\n${personaUserProfile}`;
 
       // Generate response for this persona
       const response = await generateChatResponse(baseHistory, systemPrompt);

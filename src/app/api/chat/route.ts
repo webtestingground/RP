@@ -34,8 +34,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Combine persona prompt with user profile
-    const userProfilePrompt = getUserProfilePrompt();
+    // Combine persona prompt with user profile (persona-specific if available)
+    const userProfilePrompt = getUserProfilePrompt(persona.id);
     const systemPrompt = `${persona.systemPrompt}\n\n${userProfilePrompt}`;
 
     // Prepare conversation history
